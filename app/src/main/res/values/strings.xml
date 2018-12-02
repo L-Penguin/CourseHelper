@@ -1,3 +1,6 @@
 <resources>
     <string name="app_name">CourseHelper</string>
+    <string name="textView2">Course Helper</string>
+    <string name="button2">SEARCH</string>
+    <string name="editText">Enter Your Major</string>
 </resources>
