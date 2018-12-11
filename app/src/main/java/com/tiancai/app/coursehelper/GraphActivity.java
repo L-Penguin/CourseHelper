@@ -1,10 +1,14 @@
 package com.tiancai.app.coursehelper;
 
+import android.accounts.AccountAuthenticatorResponse;
+import android.content.Intent;
+import android.os.StrictMode;
 import android.support.annotation.NonNull;
 import android.support.design.widget.Snackbar;
 import android.support.v7.app.ActionBar;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
@@ -13,6 +17,13 @@ import android.widget.AdapterView;
 import android.widget.TextView;
 import android.support.v7.widget.Toolbar;
 import android.widget.Toast;
+
+import com.tiancai.app.lib.Course;
+import com.tiancai.app.lib.CourseParser;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.ListIterator;
 
 import de.blox.graphview.Node;
 import de.blox.graphview.BaseGraphAdapter;
@@ -32,7 +43,32 @@ public class GraphActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_graph);
 
-        final Graph graph = createGraph();
+        if (android.os.Build.VERSION.SDK_INT > 9)
+        {
+            StrictMode.ThreadPolicy policy = new StrictMode.ThreadPolicy.Builder().permitAll().build();
+            StrictMode.setThreadPolicy(policy);
+        }
+
+        Intent intent = getIntent();
+        String message = intent.getStringExtra(MainActivity.EXTRA_MESSAGE);
+
+        Course course = new Course("MATH","241");
+        Course course1 = new Course("MATH", "231");
+        Course course2 = new Course("MATH", "221");
+        List<Course> list1 = new ArrayList<>();
+        List<Course> list2 = new ArrayList<>();
+        list1.add(course1);
+        list2.add(course2);
+        course.appendPrerequisite(list1);
+        course.appendPrerequisite(list2);
+
+        Log.d("graphactivity", "" + (message));
+
+        course = CourseParser.courseFactory("2019","SPRING", message);
+
+        Log.d("graphactivity", course.getCourseName() + course.getCourseNum());
+
+        final Graph graph = createGraph(course);
         setupFab(graph);
         setupAdapter(graph);
         setupToolbar();
@@ -103,34 +139,29 @@ public class GraphActivity extends AppCompatActivity {
         return true;
     }
 
-    public Graph createGraph() {
-        final Graph graph = new Graph();
-        final Node node1 = new Node(getNodeText());
-        final Node node2 = new Node(getNodeText());
-        final Node node3 = new Node(getNodeText());
-        final Node node4 = new Node(getNodeText());
-        final Node node5 = new Node(getNodeText());
-        final Node node6 = new Node(getNodeText());
-        final Node node8 = new Node(getNodeText());
-        final Node node7 = new Node(getNodeText());
-        final Node node9 = new Node(getNodeText());
-        final Node node10 = new Node(getNodeText());
-        final Node node11 = new Node(getNodeText());
-        final Node node12 = new Node(getNodeText());
+    public Graph createGraph(Course course) {
+        Graph graph = new Graph();
 
-        graph.addEdge(node1, node2);
-        graph.addEdge(node1, node3);
-        graph.addEdge(node1, node4);
-        graph.addEdge(node2, node5);
-        graph.addEdge(node2, node6);
-        graph.addEdge(node6, node7);
-        graph.addEdge(node6, node8);
-        graph.addEdge(node4, node9);
-        graph.addEdge(node4, node10);
-        graph.addEdge(node4, node11);
-        graph.addEdge(node11, node12);
+        List<Node> nodeList = new ArrayList<>();
+
+        Node parentNode = new Node(course.getCourseName() + course.getCourseNum());
+
+        parseNode(graph, parentNode, course);
 
         return graph;
+    }
+
+    public void parseNode(Graph graph, Node parentNode, Course course) {
+
+        Node node = new Node(course.getCourseName() + course.getCourseNum());
+        if (!parentNode.getData().equals(node.getData())) {
+            graph.addEdge(parentNode, node);
+        }
+        for (List<Course> each : course.getPrerequisites()) {
+            for (Course each_c : each) {
+                parseNode(graph, node, each_c);
+            }
+        }
     }
 
     public void setAlgorithm(GraphAdapter adapter) {
