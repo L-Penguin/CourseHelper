@@ -23,16 +23,13 @@ public class CourseParser {
     public static final String NO_DESCRIPTION = "no description";
     public static final String NO_PREREQUISITE = "no prerequisite";
     public static final String NEED_ALEKS = "need ALEKS";
-    public static final String COURSE_NOT_FOUND = "course not found";
+    public static final String COURSE_NOT_FOUND = "not found";
 
     public static Course courseFactory(String year, String semester, String cat_num) {
         try {
             String cat = cat_num.trim().toUpperCase().substring(0,cat_num.length() - 3);
             String num = cat_num.trim().toUpperCase().substring(cat_num.length() - 3, cat_num.length());
-            String urlStr = "http:/courses.illinois.edu/cisapp/explorer/schedule/"
-                    + year.toUpperCase().trim() + "/" + semester.toUpperCase().trim() + "/"
-                    + cat.toUpperCase().trim() + "/" + num.toUpperCase().trim() + ".xml";
-            String prerequisite = getPrerequisite(urlStr);
+
             Course course = new Course(cat.trim().toUpperCase(), num.trim().toUpperCase());
             getPrerequisiteForAll(year.toUpperCase().trim(), semester.toUpperCase().trim(), course);
             return course;
@@ -52,55 +49,51 @@ public class CourseParser {
             }
             String cat = current.getCourseName();
             String num = current.getCourseNum();
+
             String urlStr = "http:/courses.illinois.edu/cisapp/explorer/schedule/"
                     + year.toUpperCase().trim() + "/" + semester.toUpperCase().trim() + "/"
                     + cat.toUpperCase().trim() + "/" + num.toUpperCase().trim() + ".xml";
             current.setPrerequisites(parsePrerequisiteFactory(prerequisiteSeperator(getPrerequisite(urlStr))));
             for (List<Course> each : current.getPrerequisites()) {
                 for (Course each_c : each) {
+                    if (each_c.getCourseName().equals("MATH") && each_c.getCourseNum().equals("221")) {
+                        continue;
+                    }
                     getPrerequisiteForAll(year, semester, each_c);
                 }
             }
+            return;
         } catch (Exception e) {
+            e.printStackTrace();
             List<Course> toAdd = new ArrayList<>();
             toAdd.add(new Course(CourseParser.NO_PREREQUISITE, "0"));
-            current.appendPrerequisite(toAdd);
-            return;
+            List<List<Course>> result = new ArrayList<>();
+            result.add(toAdd);
+            current.setPrerequisites(result);
         }
+
     }
 
     private static String getPrerequisite(String urlStr) throws Exception {
-        URL url = new URL(urlStr);
-        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+            URL url = new URL(urlStr);
+            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
 
-        connection.connect();
+            connection.connect();
 
-        try {
             Document doc = parseXML(connection.getInputStream());
-            System.out.println(doc);
+            System.out.println(urlStr + " " + doc);
             NodeList descNode = doc.getElementsByTagName("description");
             return parsePrerequisite(descNode);
-        } catch (FileNotFoundException e) {
-            return CourseParser.COURSE_NOT_FOUND;
-        } catch (Exception e) {
-            e.printStackTrace();
-            return CourseParser.NO_PREREQUISITE;
-        }
     }
 
     private static Document parseXML(InputStream stream) throws Exception {
         DocumentBuilderFactory documentBuilderFactory = null;
         DocumentBuilder documentBuilder = null;
         Document document = null;
-        try {
             documentBuilderFactory = DocumentBuilderFactory.newInstance();
             documentBuilder = documentBuilderFactory.newDocumentBuilder();
 
             document = documentBuilder.parse(stream);
-        } catch (Exception e) {
-            throw e;
-        }
-
         return document;
     }
 
@@ -119,6 +112,11 @@ public class CourseParser {
 
     private static List<String> prerequisiteSeperator(String toSeparate) {
         List<String> list = new ArrayList<>();
+
+        if (toSeparate.equals(CourseParser.NO_PREREQUISITE)) {
+            list.add(CourseParser.COURSE_NOT_FOUND);
+            return list;
+        }
 
         if (toSeparate.contains("ALEKS")) { //some math classes happened to require ALEKS score
             list.add(CourseParser.NEED_ALEKS);
@@ -147,9 +145,15 @@ public class CourseParser {
             return result;
         }
 
+        if (str.equals(CourseParser.COURSE_NOT_FOUND)) {
+            Course course = new Course(CourseParser.COURSE_NOT_FOUND, "0");
+            List<Course> result = new ArrayList<>();
+            result.add(course);
+            return result;
+        }
+
         String input = str;
-        input = input.replace("Three", "");
-        String cat_regex = "[A-Z]+";
+        String cat_regex = "[A-Z]{2,4}";
         String num_regex = "[0-9]+";
         Matcher cat_m = Pattern.compile(cat_regex).matcher(input);
         Matcher num_m = Pattern.compile(num_regex).matcher(input);
@@ -164,6 +168,9 @@ public class CourseParser {
         List<Course> result = new ArrayList<Course>();
 
         for (int i = 0; i < cat_matches.size(); i++) {
+            if (num_matches.size() == i) {
+                return result;
+            }
             Course course = new Course(cat_matches.get(i), num_matches.get(i));
             result.add(course);
         }

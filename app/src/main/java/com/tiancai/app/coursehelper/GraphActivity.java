@@ -2,7 +2,9 @@ package com.tiancai.app.coursehelper;
 
 import android.accounts.AccountAuthenticatorResponse;
 import android.content.Intent;
+import android.os.AsyncTask;
 import android.os.StrictMode;
+import android.security.keystore.StrongBoxUnavailableException;
 import android.support.annotation.NonNull;
 import android.support.design.widget.Snackbar;
 import android.support.v7.app.ActionBar;
@@ -52,26 +54,27 @@ public class GraphActivity extends AppCompatActivity {
         Intent intent = getIntent();
         String message = intent.getStringExtra(MainActivity.EXTRA_MESSAGE);
 
-        Course course = new Course("MATH","241");
-        Course course1 = new Course("MATH", "231");
-        Course course2 = new Course("MATH", "221");
-        List<Course> list1 = new ArrayList<>();
-        List<Course> list2 = new ArrayList<>();
-        list1.add(course1);
-        list2.add(course2);
-        course.appendPrerequisite(list1);
-        course.appendPrerequisite(list2);
 
         Log.d("graphactivity", "" + (message));
 
-        course = CourseParser.courseFactory("2019","SPRING", message);
+        try {
+            new GetCourseTask().execute(message);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
 
-        Log.d("graphactivity", course.getCourseName() + course.getCourseNum());
+    private class GetCourseTask extends AsyncTask<String, Void, Course> {
+        protected Course doInBackground(String... task_url) {
+            return CourseParser.courseFactory("2019","SPRING", task_url[0]);
+        }
 
-        final Graph graph = createGraph(course);
-        setupFab(graph);
-        setupAdapter(graph);
-        setupToolbar();
+        protected void onPostExecute(Course result) {
+            final Graph graph = createGraph(result);
+            setupFab(graph);
+            setupAdapter(graph);
+            setupToolbar();
+        }
     }
 
     private void setupToolbar() {
@@ -96,7 +99,11 @@ public class GraphActivity extends AppCompatActivity {
 
             @Override
             public void onBindViewHolder(ViewHolder viewHolder, Object data, int position) {
-                viewHolder.textView.setText(data.toString());
+                if (data == null) {
+                    viewHolder.textView.setText("No Course Found");
+                } else {
+                    viewHolder.textView.setText(data.toString());
+                }
             }
         };
 
@@ -140,25 +147,66 @@ public class GraphActivity extends AppCompatActivity {
     }
 
     public Graph createGraph(Course course) {
+        System.out.println("creating graph");
         Graph graph = new Graph();
 
-        List<Node> nodeList = new ArrayList<>();
-
-        Node parentNode = new Node(course.getCourseName() + course.getCourseNum());
+        Node parentNode = new Node(new UniqueClass(course.getCourseName() + course.getCourseNum()));
 
         parseNode(graph, parentNode, course);
 
         return graph;
     }
+    private class UniqueClass {
+        private String string;
 
+        UniqueClass(String setStr) {
+            string = setStr;
+        }
+
+        @Override
+        public String toString() {
+            return string;
+        }
+
+        public String getString() {
+            return string;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            return this == obj;
+        }
+
+        @Override
+        public int hashCode() {
+            return super.hashCode();
+        }
+    }
     public void parseNode(Graph graph, Node parentNode, Course course) {
-
-        Node node = new Node(course.getCourseName() + course.getCourseNum());
-        if (!parentNode.getData().equals(node.getData())) {
+        Node node = new Node(new UniqueClass(course.getCourseName() + course.getCourseNum()));
+        node.setSize(10,20);
+        System.out.println(parentNode.getData().getClass());
+        if (!(((UniqueClass) parentNode.getData()).getString().equals(((UniqueClass) node.getData()).getString()))) {
             graph.addEdge(parentNode, node);
         }
+
+        if (course.getCourseName().equals(CourseParser.COURSE_NOT_FOUND)) {
+            return;
+        } else if (course.getCourseName().equals(CourseParser.NO_PREREQUISITE)) {
+            return;
+        }
+
+
+
         for (List<Course> each : course.getPrerequisites()) {
             for (Course each_c : each) {
+                if (each_c.getPrerequisites().size() == 0) {
+                    continue;
+                }
+                if (each_c.getCourseName().equals("MATH") && each_c.getCourseNum().equals("221")) {
+                    continue;
+                }
+
                 parseNode(graph, node, each_c);
             }
         }
